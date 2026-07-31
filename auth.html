@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Light Tracker — Sign in</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#FBF7EF; --paper-2:#F1EBDC; --ink:#16213F; --ink-soft:#5A6486;
+    --amber:#F2A93B; --amber-deep:#C9821E; --rust:#D8572A; --teal:#2E8F79;
+    --line: rgba(22,33,63,0.14);
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; font-family:'Inter',sans-serif; color:var(--ink);}
+  .layout{display:grid; grid-template-columns:1fr 1fr; min-height:100vh;}
+
+  /* -------- brand panel -------- */
+  .brand-panel{
+    background:linear-gradient(160deg,#1c2a4d,#0f1730); color:var(--paper);
+    display:flex; flex-direction:column; justify-content:space-between;
+    padding:48px; position:relative; overflow:hidden;
+  }
+  .brand-panel::before{
+    content:""; position:absolute; top:-120px; left:-100px; width:380px;height:380px;border-radius:50%;
+    background:radial-gradient(circle, rgba(242,169,59,0.18), transparent 70%);
+  }
+  .brand-panel::after{
+    content:""; position:absolute; bottom:-140px; right:-120px; width:340px;height:340px;border-radius:50%;
+    background:radial-gradient(circle, rgba(46,143,121,0.18), transparent 70%);
+  }
+  .brand-top{position:relative; display:flex; align-items:center; gap:10px; font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:18px;}
+  .brand-top svg{width:28px;height:28px;}
+  .brand-mid{position:relative; max-width:420px;}
+  .brand-mid h1{font-family:'Space Grotesk',sans-serif; font-size:32px; line-height:1.2; margin:0 0 16px;}
+  .brand-mid p{color:rgba(251,247,239,.65); font-size:15px; line-height:1.6;}
+  .brand-stats{position:relative; display:flex; gap:30px;}
+  .brand-stats div b{display:block; font-family:'Space Grotesk',sans-serif; font-size:22px;}
+  .brand-stats div span{font-size:11px; color:rgba(251,247,239,.55); font-family:'IBM Plex Mono',monospace;}
+
+  /* -------- form panel -------- */
+  .form-panel{display:flex; align-items:center; justify-content:center; padding:40px 24px; background:var(--paper);}
+  .form-card{width:100%; max-width:380px;}
+  .tabs{display:flex; background:var(--paper-2); border-radius:14px; padding:4px; margin-bottom:32px;}
+  .tabs button{
+    flex:1; border:none; background:none; padding:11px; border-radius:11px; font-family:'Space Grotesk',sans-serif;
+    font-weight:600; font-size:14px; color:var(--ink-soft); cursor:pointer; transition:all .18s ease;
+  }
+  .tabs button.active{background:var(--ink); color:var(--paper);}
+
+  .form-view{display:none;}
+  .form-view.active{display:block;}
+  .form-view h2{font-family:'Space Grotesk',sans-serif; font-size:24px; margin:0 0 6px;}
+  .form-view > p{color:var(--ink-soft); font-size:13.5px; margin:0 0 26px;}
+
+  .field{margin-bottom:16px;}
+  .field label{display:block; font-size:11px; font-family:'IBM Plex Mono',monospace; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-soft); margin-bottom:6px;}
+  .input-wrap{position:relative;}
+  .input{
+    width:100%; border:1.5px solid var(--line); background:#fff; border-radius:11px;
+    padding:12px 14px; font-size:14px; color:var(--ink); font-family:'Inter',sans-serif;
+  }
+  .input:focus{outline:none; border-color:var(--amber);}
+  .toggle-pw{position:absolute; right:12px; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; color:var(--ink-soft); font-size:11px; font-family:'IBM Plex Mono',monospace;}
+
+  .segmented{display:flex; background:var(--paper-2); border-radius:11px; padding:3px; margin-bottom:6px;}
+  .segmented button{flex:1; border:none; background:none; padding:9px 4px; border-radius:8px; font-size:11.5px; font-family:'IBM Plex Mono',monospace; color:var(--ink-soft); cursor:pointer;}
+  .segmented button.active{background:var(--ink); color:var(--paper);}
+
+  .row-inline{display:flex; justify-content:space-between; align-items:center; margin:-4px 0 20px; font-size:12.5px;}
+  .row-inline label{display:flex; align-items:center; gap:7px; color:var(--ink-soft); cursor:pointer;}
+  .link{color:var(--ink); font-weight:600; text-decoration:none;}
+
+  .btn{
+    width:100%; display:flex; align-items:center; justify-content:center; gap:8px;
+    background:var(--amber); color:var(--ink); font-family:'Space Grotesk',sans-serif; font-weight:600;
+    font-size:14.5px; padding:13px; border-radius:12px; border:none; cursor:pointer;
+    box-shadow:0 10px 22px -10px rgba(242,169,59,0.7); transition:transform .12s ease;
+  }
+  .btn:active{transform:scale(.98);}
+  .btn:hover{background:var(--amber-deep);}
+
+  .divider{display:flex; align-items:center; gap:12px; margin:22px 0; font-size:11.5px; color:var(--ink-soft); font-family:'IBM Plex Mono',monospace;}
+  .divider::before, .divider::after{content:""; flex:1; height:1px; background:var(--line);}
+
+  .switch-line{text-align:center; font-size:13px; color:var(--ink-soft); margin-top:22px;}
+
+  .strength{display:flex; gap:5px; margin-top:8px;}
+  .strength div{height:4px; flex:1; border-radius:3px; background:var(--line);}
+  .strength.weak div:nth-child(1){background:var(--rust);}
+  .strength.medium div:nth-child(1),.strength.medium div:nth-child(2){background:var(--amber);}
+  .strength.strong div{background:var(--teal);}
+
+  .toast{
+    position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(20px);
+    background:var(--ink); color:var(--paper); font-family:'Space Grotesk',sans-serif; font-size:13px;
+    padding:11px 20px; border-radius:30px; opacity:0; pointer-events:none; transition:all .25s ease;
+    box-shadow:0 10px 24px -8px rgba(0,0,0,.5);
+  }
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+
+  @media (max-width:860px){
+    .layout{grid-template-columns:1fr;}
+    .brand-panel{padding:32px 24px; min-height:220px;}
+    .brand-mid h1{font-size:24px;}
+    .brand-mid p{display:none;}
+    .brand-stats{display:none;}
+  }
+</style>
+</head>
+<body>
+
+<div class="layout">
+  <div class="brand-panel">
+    <div class="brand-top">
+      <svg viewBox="0 0 52 52" fill="none"><path d="M26 12c-7 0-11 5.5-11 11 0 4.6 2.6 7 4.4 9.3.9 1.1 1.3 2 1.3 3.2h10.6c0-1.2.4-2.1 1.3-3.2 1.8-2.3 4.4-4.7 4.4-9.3 0-5.5-4-11-11-11Z" fill="#F2A93B"/></svg>
+      Light Tracker
+    </div>
+    <div class="brand-mid">
+      <h1>Know when the lights go out.<br>Know when they'll come back.</h1>
+      <p>Real-time outage alerts, restoration predictions, and unit tracking — built for the way electricity actually works where you live.</p>
+    </div>
+    <div class="brand-stats">
+      <div><b>83%</b><span>WANT RESTORATION ETAS</span></div>
+      <div><b>15</b><span>ALERTS REQUESTED MOST</span></div>
+      <div><b>50%</b><span>JOINED WAITLIST</span></div>
+    </div>
+  </div>
+
+  <div class="form-panel">
+    <div class="form-card">
+      <div class="tabs">
+        <button type="button" class="active" data-tab="login">Log in</button>
+        <button type="button" data-tab="signup">Sign up</button>
+      </div>
+
+      <div class="form-view active" id="view-login">
+        <h2>Welcome back</h2>
+        <p>Log in to see your live power status.</p>
+        <div class="field"><label>Username</label><input class="input" placeholder="ade_j"></div>
+        <div class="field">
+          <label>Password</label>
+          <div class="input-wrap">
+            <input class="input" type="password" id="loginPw" placeholder="••••••••">
+            <button type="button" class="toggle-pw" data-target="loginPw">SHOW</button>
+          </div>
+        </div>
+        <div class="row-inline">
+          <label><input type="checkbox" checked> Remember me</label>
+          <a class="link" href="#">Forgot password?</a>
+        </div>
+        <button class="btn" type="button" id="btnLogin">Log in</button>
+        <div class="switch-line">New here? <a class="link" href="#" data-switch="signup">Create an account</a></div>
+      </div>
+
+      <div class="form-view" id="view-signup">
+        <h2>Create your account</h2>
+        <p>Takes about a minute — no card required.</p>
+        <div class="field">
+          <label>Electricity type</label>
+          <div class="segmented" id="elecType">
+            <button type="button" class="active">Prepaid</button>
+            <button type="button">Grid</button>
+            <button type="button">Generator</button>
+            <button type="button">Solar</button>
+          </div>
+        </div>
+        <div class="field"><label>Location</label><input class="input" placeholder="e.g. Lagos, Nigeria"></div>
+        <div class="field"><label>Username</label><input class="input" placeholder="ade_j"></div>
+        <div class="field">
+          <label>Password</label>
+          <div class="input-wrap">
+            <input class="input" type="password" id="signupPw" placeholder="Create a password">
+            <button type="button" class="toggle-pw" data-target="signupPw">SHOW</button>
+          </div>
+          <div class="strength" id="strengthBar"><div></div><div></div><div></div></div>
+        </div>
+        <button class="btn" type="button" id="btnSignup" style="margin-top:6px;">Create account</button>
+        <div class="switch-line">Already have an account? <a class="link" href="#" data-switch="login">Log in</a></div>
+      </div>
+
+      <div class="divider">or continue with</div>
+      <button class="btn" type="button" style="background:#fff; border:1.5px solid var(--line); color:var(--ink); box-shadow:none;" id="btnGoogle">Continue with Google</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  'use strict';
+  function $(s,r){ return (r||document).querySelector(s); }
+  function $all(s,r){ return Array.prototype.slice.call((r||document).querySelectorAll(s)); }
+
+  function setTab(name){
+    $all('.tabs button').forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-tab')===name); });
+    $all('.form-view').forEach(function(v){ v.classList.remove('active'); });
+    var view = document.getElementById('view-' + name);
+    if(view) view.classList.add('active');
+  }
+
+  $all('.tabs button').forEach(function(b){
+    b.addEventListener('click', function(){ setTab(b.getAttribute('data-tab')); });
+  });
+  $all('[data-switch]').forEach(function(a){
+    a.addEventListener('click', function(e){
+      e.preventDefault();
+      setTab(a.getAttribute('data-switch'));
+    });
+  });
+
+  $all('#elecType button').forEach(function(b){
+    b.addEventListener('click', function(){
+      $all('#elecType button').forEach(function(x){ x.classList.remove('active'); });
+      b.classList.add('active');
+    });
+  });
+
+  $all('.toggle-pw').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var input = document.getElementById(btn.getAttribute('data-target'));
+      if(input.type === 'password'){ input.type = 'text'; btn.textContent = 'HIDE'; }
+      else { input.type = 'password'; btn.textContent = 'SHOW'; }
+    });
+  });
+
+  var signupPw = $('#signupPw');
+  if(signupPw){
+    signupPw.addEventListener('input', function(){
+      var v = signupPw.value;
+      var bar = $('#strengthBar');
+      bar.className = 'strength';
+      if(v.length === 0) return;
+      if(v.length < 6) bar.classList.add('weak');
+      else if(v.length < 10) bar.classList.add('medium');
+      else bar.classList.add('strong');
+    });
+  }
+
+  var toastTimer;
+  function showToast(msg){
+    var t = $('#toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ t.classList.remove('show'); }, 2200);
+  }
+
+  var btnLogin = $('#btnLogin');
+  if(btnLogin) btnLogin.addEventListener('click', function(){
+    showToast('Logged in \u2014 redirecting to dashboard\u2026');
+    setTimeout(function(){ window.location.href = 'dashboard.html'; }, 700);
+  });
+  var btnSignup = $('#btnSignup');
+  if(btnSignup) btnSignup.addEventListener('click', function(){
+    showToast('Account created \u2014 redirecting to dashboard\u2026');
+    setTimeout(function(){ window.location.href = 'dashboard.html'; }, 700);
+  });
+  var btnGoogle = $('#btnGoogle');
+  if(btnGoogle) btnGoogle.addEventListener('click', function(){
+    showToast('Google sign-in would open here');
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Light Tracker — Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#FBF7EF; --paper-2:#F1EBDC; --ink:#16213F; --ink-soft:#5A6486;
+    --amber:#F2A93B; --amber-deep:#C9821E; --rust:#D8572A; --teal:#2E8F79;
+    --line: rgba(22,33,63,0.12);
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; font-family:'Inter',sans-serif; color:var(--ink); background:var(--paper);}
+  .app{display:grid; grid-template-columns:250px 1fr; min-height:100vh;}
+
+  /* -------- sidebar -------- */
+  .sidebar{
+    background:linear-gradient(180deg,#1c2a4d,#0f1730); color:var(--paper);
+    padding:26px 20px; display:flex; flex-direction:column; position:sticky; top:0; height:100vh;
+  }
+  .brand{display:flex; align-items:center; gap:10px; font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:17px; margin-bottom:36px;}
+  .brand svg{width:26px;height:26px;}
+  .side-nav{display:flex; flex-direction:column; gap:4px; flex:1;}
+  .side-nav a{
+    display:flex; align-items:center; gap:12px; padding:11px 14px; border-radius:11px; text-decoration:none;
+    color:rgba(251,247,239,.7); font-size:14px; font-weight:500; transition:all .15s ease;
+  }
+  .side-nav a svg{width:18px;height:18px; flex-shrink:0;}
+  .side-nav a:hover{background:rgba(255,255,255,.06); color:var(--paper);}
+  .side-nav a.active{background:var(--amber); color:var(--ink); font-weight:600;}
+  .side-foot{display:flex; align-items:center; gap:10px; padding-top:18px; border-top:1px solid rgba(255,255,255,.1);}
+  .side-foot .avatar{width:36px;height:36px;border-radius:50%; background:var(--amber); color:var(--ink); display:flex;align-items:center;justify-content:center; font-family:'Space Grotesk',sans-serif; font-weight:700; flex-shrink:0;}
+  .side-foot b{display:block; font-size:13px;}
+  .side-foot span{font-size:11px; color:rgba(251,247,239,.5);}
+
+  /* -------- main -------- */
+  main{padding:28px 36px 60px;}
+  .topbar{display:flex; justify-content:space-between; align-items:center; margin-bottom:28px; gap:16px;}
+  .topbar h1{font-family:'Space Grotesk',sans-serif; font-size:24px; margin:0;}
+  .topbar span.sub{font-size:13px; color:var(--ink-soft);}
+  .top-actions{display:flex; gap:10px; align-items:center;}
+  .icon-btn{width:40px;height:40px;border-radius:12px; border:1px solid var(--line); background:#fff; display:flex;align-items:center;justify-content:center; cursor:pointer; position:relative;}
+  .icon-btn .dot{position:absolute; top:8px; right:8px; width:7px;height:7px;border-radius:50%; background:var(--rust);}
+  .btn{
+    display:inline-flex; align-items:center; gap:8px; font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:13.5px;
+    padding:10px 18px; border-radius:11px; border:none; cursor:pointer;
+  }
+  .btn-amber{background:var(--amber); color:var(--ink); box-shadow:0 8px 18px -9px rgba(242,169,59,.7);}
+
+  /* -------- grid -------- */
+  .grid{display:grid; grid-template-columns:1.3fr 1fr; gap:22px; margin-bottom:22px;}
+  .card{background:#fff; border:1px solid var(--line); border-radius:18px; padding:22px;}
+  .card-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;}
+  .card-head h3{font-family:'Space Grotesk',sans-serif; font-size:15px; margin:0;}
+  .card-head span{font-size:11.5px; font-family:'IBM Plex Mono',monospace; color:var(--ink-soft);}
+
+  /* status card */
+  .status-card{background:var(--ink); color:var(--paper); border:none;}
+  .status-main{display:flex; align-items:center; gap:20px; cursor:pointer; user-select:none;}
+  .status-ring{width:70px;height:70px;border-radius:50%; display:flex;align-items:center;justify-content:center; flex-shrink:0; transition:all .3s ease;}
+  .status-ring div{width:52px;height:52px;border-radius:50%; background:var(--ink); display:flex;align-items:center;justify-content:center; font-family:'IBM Plex Mono',monospace; font-size:11px;}
+  .status-text b{font-family:'Space Grotesk',sans-serif; font-size:19px; display:block;}
+  .status-text span{font-size:12.5px; color:rgba(251,247,239,.6);}
+  .status-sub-cards{display:flex; gap:14px; margin-top:20px;}
+  .mini-stat{flex:1; background:rgba(255,255,255,.06); border-radius:12px; padding:12px 14px;}
+  .mini-stat span{font-size:10px; font-family:'IBM Plex Mono',monospace; color:rgba(251,247,239,.5); text-transform:uppercase;}
+  .mini-stat b{display:block; font-family:'Space Grotesk',sans-serif; font-size:16px; margin-top:4px;}
+  .tap-hint{font-size:10px; color:rgba(251,247,239,.4); margin-top:14px; font-family:'IBM Plex Mono',monospace;}
+
+  /* units card */
+  .big-num{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:30px;}
+  .bar{height:8px; border-radius:5px; background:var(--paper-2); margin:12px 0 8px; overflow:hidden;}
+  .bar div{height:100%; background:var(--teal); border-radius:5px; width:38%;}
+  .card p.sub{font-size:12.5px; color:var(--ink-soft); margin:0;}
+  .confidence{display:inline-block; margin-top:10px; font-family:'IBM Plex Mono',monospace; font-size:10px; background:rgba(46,143,121,.14); color:var(--teal); padding:3px 10px; border-radius:20px;}
+
+  /* chart + outage list */
+  .grid2{display:grid; grid-template-columns:1.4fr 1fr; gap:22px;}
+  .outage-row{display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-bottom:1px solid var(--line); font-size:13px;}
+  .outage-row:last-child{border-bottom:none;}
+  .outage-row .tag{font-family:'IBM Plex Mono',monospace; font-size:10.5px; padding:3px 9px; border-radius:20px;}
+  .tag.off{background:rgba(216,87,42,.12); color:var(--rust);}
+  .tag.on{background:rgba(242,169,59,.15); color:var(--amber-deep);}
+  .outage-row .dur{color:var(--ink-soft); font-size:12px;}
+
+  /* -------- mobile bottom nav (hidden on desktop) -------- */
+  .bottom-nav{display:none;}
+
+  @media (max-width:980px){
+    .app{grid-template-columns:1fr;}
+    .sidebar{display:none;}
+    main{padding:20px 18px 90px;}
+    .grid, .grid2{grid-template-columns:1fr;}
+    .bottom-nav{
+      display:flex; position:fixed; bottom:0; left:0; right:0; background:#fff; border-top:1px solid var(--line);
+      justify-content:space-around; padding:10px 8px calc(10px + env(safe-area-inset-bottom)); z-index:40;
+    }
+    .bottom-nav a{display:flex; flex-direction:column; align-items:center; gap:4px; text-decoration:none; color:var(--ink-soft); font-size:10px; font-family:'IBM Plex Mono',monospace;}
+    .bottom-nav a.active{color:var(--amber-deep); font-weight:600;}
+    .bottom-nav a svg{width:18px;height:18px;}
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <svg viewBox="0 0 52 52" fill="none"><path d="M26 12c-7 0-11 5.5-11 11 0 4.6 2.6 7 4.4 9.3.9 1.1 1.3 2 1.3 3.2h10.6c0-1.2.4-2.1 1.3-3.2 1.8-2.3 4.4-4.7 4.4-9.3 0-5.5-4-11-11-11Z" fill="#F2A93B"/></svg>
+      Light Tracker
+    </div>
+    <nav class="side-nav">
+      <a href="#" class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Home</a>
+      <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z"/></svg>Report outage</a>
+      <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V5a2 2 0 0 1 2-2h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M9 9h6M9 13h6M9 17h3"/></svg>Reports</a>
+      <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20c0-4 3.6-6 8-6s8 2 8 6M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"/></svg>Community map</a>
+      <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v4M4 12H2M22 12h-2M12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12Z"/></svg>Ask AI</a>
+      <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9c.2.7.7 1.2 1.5 1.4h.1a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.4 1Z"/></svg>Settings</a>
+    </nav>
+    <div class="side-foot">
+      <div class="avatar" id="sideAvatar">A</div>
+      <div><b id="sideName">Ade Johnson</b><span>Yaba, Lagos</span></div>
+    </div>
+  </aside>
+
+  <main>
+    <div class="topbar">
+      <div>
+        <h1>Good afternoon, <span id="topName">Ade</span> 👋</h1>
+        <span class="sub">Here's what's happening with your power today.</span>
+      </div>
+      <div class="top-actions">
+        <button class="icon-btn"><span class="dot"></span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16213F" stroke-width="2"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+        </button>
+        <button class="btn btn-amber" id="btnReport">Report outage</button>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card status-card">
+        <div class="status-main" id="statusMain">
+          <div class="status-ring" id="statusRing"><div id="statusRingText">OFF</div></div>
+          <div class="status-text">
+            <b id="statusHeadline">Power is off</b>
+            <span id="statusSub">Off for 1h 42m in Yaba</span>
+          </div>
+        </div>
+        <div class="status-sub-cards">
+          <div class="mini-stat"><span>Est. restoration</span><b id="restoreBig">~3.5 hrs</b></div>
+          <div class="mini-stat"><span>Confidence</span><b>High (12 past)</b></div>
+          <div class="mini-stat"><span>This week</span><b>4 outages</b></div>
+        </div>
+        <div class="tap-hint">tap the status to simulate a change</div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>Units remaining</h3><span>Prepaid</span></div>
+        <div class="big-num">14 units</div>
+        <div class="bar"><div></div></div>
+        <p class="sub">≈ 2 days left · last topped up Jul 21</p>
+        <div class="confidence">On track for this month's budget</div>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="card">
+        <div class="card-head"><h3>Usage this month</h3><span>UNITS / DAY</span></div>
+        <div style="position:relative; height:220px;">
+          <canvas id="usageChart" role="img" aria-label="Bar chart of daily electricity unit usage over the past two weeks, ranging from about 1.8 to 4.1 units per day."></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>Recent outages</h3><span>THIS WEEK</span></div>
+        <div class="outage-row"><span>Today, 2:15 PM</span><span class="tag off">1h 42m</span></div>
+        <div class="outage-row"><span>Yesterday, 7:40 AM</span><span class="tag off">2h 10m</span></div>
+        <div class="outage-row"><span>Mon, 9:05 PM</span><span class="tag off">3h 05m</span></div>
+        <div class="outage-row"><span>Sun, 6:20 AM</span><span class="tag off">1h 20m</span></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<nav class="bottom-nav">
+  <a href="#" class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Home</a>
+  <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z"/></svg>Report</a>
+  <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v4M4 12H2M22 12h-2M12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12Z"/></svg>Ask AI</a>
+  <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/></svg>Settings</a>
+</nav>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+(function(){
+  'use strict';
+  function $(s){ return document.querySelector(s); }
+
+  var powerOn = false;
+  function renderPower(){
+    var ring = $('#statusRing'), ringText = $('#statusRingText'), headline = $('#statusHeadline'), sub = $('#statusSub');
+    if(powerOn){
+      ring.style.background = 'conic-gradient(var(--amber) 0turn 1turn)';
+      ringText.textContent = 'ON'; headline.textContent = 'Power is on'; sub.textContent = 'Steady for 3h 10m in Yaba';
+    } else {
+      ring.style.background = 'conic-gradient(var(--rust) 0turn 1turn)';
+      ringText.textContent = 'OFF'; headline.textContent = 'Power is off'; sub.textContent = 'Off for 1h 42m in Yaba';
+    }
+  }
+  var statusMain = $('#statusMain');
+  if(statusMain) statusMain.addEventListener('click', function(){ powerOn = !powerOn; renderPower(); });
+  renderPower();
+
+  var btnReport = $('#btnReport');
+  if(btnReport) btnReport.addEventListener('click', function(){ window.location.href = 'dashboard.html#report'; });
+
+  var ctx = document.getElementById('usageChart');
+  if(ctx && typeof Chart !== 'undefined'){
+    new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: ['Jul 17','Jul 18','Jul 19','Jul 20','Jul 21','Jul 22','Jul 23','Jul 24','Jul 25','Jul 26','Jul 27','Jul 28','Jul 29','Jul 30'],
+        datasets: [{
+          data: [2.4,2.1,3.6,2.8,1.9,2.2,3.1,4.1,2.6,2.3,3.4,2.0,2.7,1.8],
+          backgroundColor: '#2E8F79',
+          borderRadius: 4,
+          barThickness: 14
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: '#5A6486', font: { size: 9 } }, grid: { display: false } },
+          y: { ticks: { color: '#5A6486', font: { size: 10 } }, grid: { color: '#EDE7D8' } }
+        }
+      }
+    });
+  } else if(ctx) {
+    ctx.parentElement.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#5A6486;font-size:12.5px;">Chart could not load \u2014 check your internet connection</div>';
+  }
+})();
+</script>
+</body>
+</html>
