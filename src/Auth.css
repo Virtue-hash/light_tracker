@@ -1,0 +1,74 @@
+/* Note: :root vars assumed already defined by App.css when embedded.
+   Kept here too so Auth.jsx also works as a standalone page. */
+:root{
+  --paper:#FBF7EF; --paper-2:#F1EBDC; --ink:#16213F; --ink-soft:#5A6486;
+  --amber:#F2A93B; --amber-deep:#C9821E; --rust:#D8572A; --teal:#2E8F79;
+  --line: rgba(22,33,63,0.14);
+}
+
+.auth-layout{display:grid; grid-template-columns:1fr 1fr; min-height:100vh;}
+.auth-layout.compact{display:block; min-height:auto;}
+
+/* -------- brand panel (hidden entirely in compact mode) -------- */
+.auth-brand-panel{
+  background:linear-gradient(160deg,#1c2a4d,#0f1730); color:var(--paper);
+  display:flex; flex-direction:column; justify-content:space-between;
+  padding:48px; position:relative; overflow:hidden;
+}
+.auth-brand-panel::before{
+  content:""; position:absolute; top:-120px; left:-100px; width:380px;height:380px;border-radius:50%;
+  background:radial-gradient(circle, rgba(242,169,59,0.18), transparent 70%);
+}
+.auth-brand-panel::after{
+  content:""; position:absolute; bottom:-140px; right:-120px; width:340px;height:340px;border-radius:50%;
+  background:radial-gradient(circle, rgba(46,143,121,0.18), transparent 70%);
+}
+.auth-brand-top{position:relative; display:flex; align-items:center; gap:10px; font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:18px;}
+.auth-brand-top svg{width:28px;height:28px;}
+.auth-brand-mid{position:relative; max-width:420px;}
+.auth-brand-mid h1{font-family:'Space Grotesk',sans-serif; font-size:32px; line-height:1.2; margin:0 0 16px;}
+.auth-brand-mid p{color:rgba(251,247,239,.65); font-size:15px; line-height:1.6;}
+.auth-brand-stats{position:relative; display:flex; gap:30px;}
+.auth-brand-stats div b{display:block; font-family:'Space Grotesk',sans-serif; font-size:22px;}
+.auth-brand-stats div span{font-size:11px; color:rgba(251,247,239,.55); font-family:'IBM Plex Mono',monospace;}
+
+/* -------- form panel -------- */
+.auth-form-panel{display:flex; align-items:center; justify-content:center; padding:40px 24px; background:var(--paper);}
+.auth-layout.compact .auth-form-panel{padding:18px 4px 6px; display:block;}
+.auth-form-card{width:100%; max-width:380px; margin:0 auto;}
+.auth-tabs{display:flex; background:var(--paper-2); border-radius:14px; padding:4px; margin-bottom:24px;}
+.auth-tabs button{
+  flex:1; border:none; background:none; padding:11px; border-radius:11px; font-family:'Space Grotesk',sans-serif;
+  font-weight:600; font-size:14px; color:var(--ink-soft); cursor:pointer; transition:all .18s ease;
+}
+.auth-tabs button.active{background:var(--ink); color:var(--paper);}
+
+.auth-form-view{display:none;}
+.auth-form-view.active{display:block;}
+.auth-form-view h2{font-family:'Space Grotesk',sans-serif; font-size:20px; margin:0 0 6px; color:var(--ink);}
+.auth-form-view > p{color:var(--ink-soft); font-size:13px; margin:0 0 20px;}
+
+.input-wrap{position:relative;}
+.toggle-pw{position:absolute; right:12px; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; color:var(--ink-soft); font-size:11px; font-family:'IBM Plex Mono',monospace;}
+
+.row-inline{display:flex; justify-content:space-between; align-items:center; margin:-4px 0 20px; font-size:12.5px;}
+.row-inline label{display:flex; align-items:center; gap:7px; color:var(--ink-soft); cursor:pointer;}
+
+.divider{display:flex; align-items:center; gap:12px; margin:22px 0; font-size:11.5px; color:var(--ink-soft); font-family:'IBM Plex Mono',monospace;}
+.divider::before, .divider::after{content:""; flex:1; height:1px; background:var(--line);}
+
+.switch-line{text-align:center; font-size:13px; color:var(--ink-soft); margin-top:22px;}
+
+.strength{display:flex; gap:5px; margin-top:8px;}
+.strength div{height:4px; flex:1; border-radius:3px; background:var(--line);}
+.strength.weak div:nth-child(1){background:var(--rust);}
+.strength.medium div:nth-child(1),.strength.medium div:nth-child(2){background:var(--amber);}
+.strength.strong div{background:var(--teal);}
+
+@media (max-width:860px){
+  .auth-layout:not(.compact){grid-template-columns:1fr;}
+  .auth-layout:not(.compact) .auth-brand-panel{padding:32px 24px; min-height:220px;}
+  .auth-layout:not(.compact) .auth-brand-mid h1{font-size:24px;}
+  .auth-layout:not(.compact) .auth-brand-mid p{display:none;}
+  .auth-layout:not(.compact) .auth-brand-stats{display:none;}
+}
