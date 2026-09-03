@@ -174,10 +174,21 @@ app.post('/api/register', async (req, res) => {
       );
     }
 
+    // Generate a 6-digit email verification code, valid for 15 minutes.
+    // The frontend sends the user straight to a "verify" screen after
+    // signup and won't log them in until this code is confirmed.
+    const verificationCode = crypto.randomInt(100000, 1000000).toString();
+    const verificationExpires = new Date(Date.now() + 15 * 60 * 1000);
+
+    await pool.query(
+      'UPDATE users SET verification_code = $1, verification_code_expires = $2 WHERE id = $3',
+      [verificationCode, verificationExpires, userId]
+    );
+
     sendEmail(
       email,
-      'Welcome to Light Tracker',
-      `Hi ${full_name},\n\nYour Light Tracker account is ready. We'll let you know when power comes back after an outage, and when you're running low on units.\n\n- Light Tracker`
+      'Verify your Light Tracker email',
+      `Hi ${full_name},\n\nYour Light Tracker verification code is: ${verificationCode}\n\nThis code expires in 15 minutes.\n\n- Light Tracker`
     ).catch(() => {});
 
     res.status(201).json({
@@ -215,6 +226,92 @@ app.post('/api/login', async (req, res) => {
       id: user.id,
       full_name: user.full_name,
       email: user.email
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ============================================================
+   EMAIL VERIFICATION
+   Matches Auth.js's handleVerifyCode / handleResendCode exactly:
+   verify-email takes { email, code }, resend-verification takes
+   just { email }.
+   ============================================================ */
+app.post('/api/verify-email', async (req, res) => {
+  const { email, code } = req.body;
+  if (!email || !code) {
+    return res.status(400).json({ error: 'email and code are required' });
+  }
+
+  try {
+    const { rows } = await pool.query(
+      'SELECT id, verification_code, verification_code_expires, email_verified FROM users WHERE email = $1',
+      [email]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'No account with that email' });
+    }
+    const user = rows[0];
+
+    if (user.email_verified) {
+      return res.json({ verified: true, message: 'Email already verified' });
+    }
+    if (!user.verification_code || user.verification_code !== code) {
+      return res.status(400).json({ error: 'Incorrect code' });
+    }
+    if (user.verification_code_expires && new Date(user.verification_code_expires) < new Date()) {
+      return res.status(400).json({ error: 'Code expired -- request a new one' });
+    }
+
+    await pool.query(
+      'UPDATE users SET email_verified = TRUE, verification_code = NULL, verification_code_expires = NULL WHERE id = $1',
+      [user.id]
+    );
+
+    res.json({ verified: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/resend-verification', async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ error: 'email is required' });
+  }
+
+  try {
+    const { rows } = await pool.query(
+      'SELECT id, full_name, email_verified FROM users WHERE email = $1',
+      [email]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'No account with that email' });
+    }
+    const user = rows[0];
+
+    if (user.email_verified) {
+      return res.json({ sent: false, message: 'Email is already verified' });
+    }
+
+    const verificationCode = crypto.randomInt(100000, 1000000).toString();
+    const verificationExpires = new Date(Date.now() + 15 * 60 * 1000);
+
+    await pool.query(
+      'UPDATE users SET verification_code = $1, verification_code_expires = $2 WHERE id = $3',
+      [verificationCode, verificationExpires, user.id]
+    );
+
+    const result = await sendEmail(
+      email,
+      'Your new Light Tracker verification code',
+      `Hi ${user.full_name},\n\nYour new verification code is: ${verificationCode}\n\nThis code expires in 15 minutes.\n\n- Light Tracker`
+    );
+
+    res.json({
+      sent: result.sent,
+      message: result.sent ? 'Code resent -- check your email' : 'Could not send email -- check EMAIL_USER/EMAIL_APP_PASSWORD on the server'
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
