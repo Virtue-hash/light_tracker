@@ -174,27 +174,24 @@ app.post('/api/register', async (req, res) => {
       );
     }
 
-    // Generate a 6-digit email verification code, valid for 15 minutes.
-    // The frontend sends the user straight to a "verify" screen after
-    // signup and won't log them in until this code is confirmed.
-    const verificationCode = crypto.randomInt(100000, 1000000).toString();
-    const verificationExpires = new Date(Date.now() + 15 * 60 * 1000);
-
-    await pool.query(
-      'UPDATE users SET verification_code = $1, verification_code_expires = $2 WHERE id = $3',
-      [verificationCode, verificationExpires, userId]
-    );
+    // Email verification is disabled for now (no email service configured
+    // yet) -- new accounts are marked verified immediately so the frontend
+    // can log them straight in instead of waiting on a code that can't be
+    // delivered. Flip this back on later once EMAIL_USER/EMAIL_APP_PASSWORD
+    // (or another email provider) is set up on Render.
+    await pool.query('UPDATE users SET email_verified = TRUE WHERE id = $1', [userId]);
 
     sendEmail(
       email,
-      'Verify your Light Tracker email',
-      `Hi ${full_name},\n\nYour Light Tracker verification code is: ${verificationCode}\n\nThis code expires in 15 minutes.\n\n- Light Tracker`
+      'Welcome to Light Tracker',
+      `Hi ${full_name},\n\nYour Light Tracker account is ready.\n\n- Light Tracker`
     ).catch(() => {});
 
     res.status(201).json({
       id: userId,
       full_name,
-      email
+      email,
+      email_verified: true
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
