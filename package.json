@@ -1,7 +1,7 @@
 {
   "name": "light-tracker-server",
   "version": "1.0.0",
-  "description": "Express + MySQL API for the Light Tracker app",
+  "description": "Express + PostgreSQL API for the Light Tracker app",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -12,7 +12,7 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
-    "mysql2": "^3.23.3",
+    "pg": "^8.13.1",
     "nodemailer": "^6.9.16"
   }
 }

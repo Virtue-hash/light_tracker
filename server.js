@@ -1,6 +1,6 @@
 require('dotenv').config();
 const express = require('express');
-const mysql = require('mysql2/promise');
+const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const cors = require('cors');
@@ -58,15 +58,16 @@ async function sendEmail(to, subject, text) {
 
 /* ============================================================
    DATABASE CONNECTION
+   Switched from mysql2 to pg (PostgreSQL). Render gives you a
+   single DATABASE_URL env var instead of separate host/user/
+   password/db vars -- the pg Pool reads it directly.
+   ssl is enabled whenever DATABASE_URL is set (Render's managed
+   Postgres requires it) and disabled for plain local dev without
+   a DATABASE_URL.
    ============================================================ */
-const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  port: process.env.DB_PORT || 3306,
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'light_tracker',
-  waitForConnections: true,
-  connectionLimit: 10
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
 });
 
 /* ============================================================
@@ -105,8 +106,14 @@ function requireAdmin(req, res, next) {
 }
 
 /* ============================================================
-   HEALTH CHECK
+   ROOT / HEALTH CHECK
+   Added so opening the Render URL directly shows something
+   instead of "Cannot GET /".
    ============================================================ */
+app.get('/', (req, res) => {
+  res.json({ message: 'Light Tracker API is running!', status: 'OK' });
+});
+
 app.get('/api/health', async (req, res) => {
   try {
     await pool.query('SELECT 1');
@@ -126,17 +133,17 @@ app.post('/api/register', async (req, res) => {
   }
 
   try {
-    const [existing] = await pool.query('SELECT id FROM users WHERE email = ?', [email]);
+    const { rows: existing } = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
     if (existing.length > 0) {
       return res.status(409).json({ error: 'An account with that email already exists' });
     }
 
     const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
-    const [result] = await pool.query(
-      'INSERT INTO users (full_name, email, password_hash) VALUES (?, ?, ?)',
+    const { rows: userRows } = await pool.query(
+      'INSERT INTO users (full_name, email, password_hash) VALUES ($1, $2, $3) RETURNING id',
       [full_name, email, passwordHash]
     );
-    const userId = result.insertId;
+    const userId = userRows[0].id;
 
     // Save the electricity profile too, if the signup form sent one.
     if (electricity_type && location) {
@@ -146,23 +153,23 @@ app.post('/api/register', async (req, res) => {
       // transformer this user belongs to
       if (transformer_name && transformer_name.trim()) {
         const cleanName = transformer_name.trim();
-        const [existingTransformer] = await pool.query(
-          'SELECT id FROM transformers WHERE name = ?',
+        const { rows: existingTransformer } = await pool.query(
+          'SELECT id FROM transformers WHERE name = $1',
           [cleanName]
         );
         if (existingTransformer.length > 0) {
           transformerId = existingTransformer[0].id;
         } else {
-          const [newTransformer] = await pool.query(
-            'INSERT INTO transformers (name, location) VALUES (?, ?)',
+          const { rows: newTransformer } = await pool.query(
+            'INSERT INTO transformers (name, location) VALUES ($1, $2) RETURNING id',
             [cleanName, location]
           );
-          transformerId = newTransformer.insertId;
+          transformerId = newTransformer[0].id;
         }
       }
 
       await pool.query(
-        'INSERT INTO electricity_profiles (user_id, electricity_type, location, monthly_budget, transformer_id) VALUES (?, ?, ?, ?, ?)',
+        'INSERT INTO electricity_profiles (user_id, electricity_type, location, monthly_budget, transformer_id) VALUES ($1, $2, $3, $4, $5)',
         [userId, electricity_type, location, monthly_budget || 0, transformerId]
       );
     }
@@ -190,8 +197,8 @@ app.post('/api/login', async (req, res) => {
   }
 
   try {
-    const [rows] = await pool.query(
-      'SELECT id, full_name, email, password_hash FROM users WHERE email = ?',
+    const { rows } = await pool.query(
+      'SELECT id, full_name, email, password_hash FROM users WHERE email = $1',
       [email]
     );
     if (rows.length === 0) {
@@ -264,7 +271,7 @@ function registerTableRoutes(tableName, { columns, orderBy }) {
   // GET /api/<table> -- public, list everything
   app.get(base, async (req, res) => {
     try {
-      const [rows] = await pool.query(`SELECT * FROM \`${tableName}\` ORDER BY ${orderBy}`);
+      const { rows } = await pool.query(`SELECT * FROM ${tableName} ORDER BY ${orderBy}`);
       res.json(rows);
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -274,7 +281,7 @@ function registerTableRoutes(tableName, { columns, orderBy }) {
   // GET /api/<table>/:id -- public, single row
   app.get(`${base}/:id`, async (req, res) => {
     try {
-      const [rows] = await pool.query(`SELECT * FROM \`${tableName}\` WHERE id = ?`, [req.params.id]);
+      const { rows } = await pool.query(`SELECT * FROM ${tableName} WHERE id = $1`, [req.params.id]);
       if (rows.length === 0) return res.status(404).json({ error: 'Not found' });
       res.json(rows[0]);
     } catch (err) {
@@ -292,13 +299,12 @@ function registerTableRoutes(tableName, { columns, orderBy }) {
       return res.status(400).json({ error: `Provide at least one of: ${columns.join(', ')}` });
     }
     const values = providedColumns.map((col) => req.body[col]);
-    const placeholders = providedColumns.map(() => '?').join(', ');
+    const placeholders = providedColumns.map((_, i) => `$${i + 1}`).join(', ');
     try {
-      const [result] = await pool.query(
-        `INSERT INTO \`${tableName}\` (${providedColumns.join(', ')}) VALUES (${placeholders})`,
+      const { rows } = await pool.query(
+        `INSERT INTO ${tableName} (${providedColumns.join(', ')}) VALUES (${placeholders}) RETURNING *`,
         values
       );
-      const [rows] = await pool.query(`SELECT * FROM \`${tableName}\` WHERE id = ?`, [result.insertId]);
       res.status(201).json(rows[0]);
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -313,15 +319,14 @@ function registerTableRoutes(tableName, { columns, orderBy }) {
     if (providedColumns.length === 0) {
       return res.status(400).json({ error: `Provide at least one of: ${columns.join(', ')}` });
     }
-    const setClause = providedColumns.map((col) => `\`${col}\` = ?`).join(', ');
+    const setClause = providedColumns.map((col, i) => `${col} = $${i + 1}`).join(', ');
     const values = providedColumns.map((col) => req.body[col]);
     try {
-      const [result] = await pool.query(
-        `UPDATE \`${tableName}\` SET ${setClause} WHERE id = ?`,
+      const { rows, rowCount } = await pool.query(
+        `UPDATE ${tableName} SET ${setClause} WHERE id = $${providedColumns.length + 1} RETURNING *`,
         [...values, req.params.id]
       );
-      if (result.affectedRows === 0) return res.status(404).json({ error: 'Not found' });
-      const [rows] = await pool.query(`SELECT * FROM \`${tableName}\` WHERE id = ?`, [req.params.id]);
+      if (rowCount === 0) return res.status(404).json({ error: 'Not found' });
       res.json(rows[0]);
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -331,8 +336,8 @@ function registerTableRoutes(tableName, { columns, orderBy }) {
   // DELETE /api/<table>/:id -- admin only
   app.delete(`${base}/:id`, requireAdmin, async (req, res) => {
     try {
-      const [result] = await pool.query(`DELETE FROM \`${tableName}\` WHERE id = ?`, [req.params.id]);
-      if (result.affectedRows === 0) return res.status(404).json({ error: 'Not found' });
+      const { rowCount } = await pool.query(`DELETE FROM ${tableName} WHERE id = $1`, [req.params.id]);
+      if (rowCount === 0) return res.status(404).json({ error: 'Not found' });
       res.status(204).send();
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -350,7 +355,7 @@ Object.entries(TABLES).forEach(([tableName, config]) => registerTableRoutes(tabl
    ============================================================ */
 app.get('/api/admin/users', requireAdmin, async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT id, full_name, email, created_at FROM users ORDER BY id');
+    const { rows } = await pool.query('SELECT id, full_name, email, created_at FROM users ORDER BY id');
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -360,12 +365,11 @@ app.get('/api/admin/users', requireAdmin, async (req, res) => {
 app.put('/api/admin/users/:id', requireAdmin, async (req, res) => {
   const { full_name, email } = req.body;
   try {
-    const [result] = await pool.query(
-      'UPDATE users SET full_name = ?, email = ? WHERE id = ?',
+    const { rows, rowCount } = await pool.query(
+      'UPDATE users SET full_name = $1, email = $2 WHERE id = $3 RETURNING id, full_name, email, created_at',
       [full_name, email, req.params.id]
     );
-    if (result.affectedRows === 0) return res.status(404).json({ error: 'Not found' });
-    const [rows] = await pool.query('SELECT id, full_name, email, created_at FROM users WHERE id = ?', [req.params.id]);
+    if (rowCount === 0) return res.status(404).json({ error: 'Not found' });
     res.json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -374,8 +378,8 @@ app.put('/api/admin/users/:id', requireAdmin, async (req, res) => {
 
 app.delete('/api/admin/users/:id', requireAdmin, async (req, res) => {
   try {
-    const [result] = await pool.query('DELETE FROM users WHERE id = ?', [req.params.id]);
-    if (result.affectedRows === 0) return res.status(404).json({ error: 'Not found' });
+    const { rowCount } = await pool.query('DELETE FROM users WHERE id = $1', [req.params.id]);
+    if (rowCount === 0) return res.status(404).json({ error: 'Not found' });
     res.status(204).send();
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -468,15 +472,13 @@ app.get('/api/topup/verify/:reference', async (req, res) => {
     const amountNaira = tx.amount / 100; // convert back from kobo
     const units = +(amountNaira / UNIT_PRICE_NAIRA).toFixed(2);
 
-    const [result] = await pool.query(
-      'INSERT INTO unit_purchases (user_id, units, amount_naira) VALUES (?, ?, ?)',
+    const { rows: purchaseRows } = await pool.query(
+      'INSERT INTO unit_purchases (user_id, units, amount_naira) VALUES ($1, $2, $3) RETURNING *',
       [userId, units, amountNaira]
     );
     processedReferences.add(reference);
 
-    const [rows] = await pool.query('SELECT * FROM unit_purchases WHERE id = ?', [result.insertId]);
-
-    const [userRows] = await pool.query('SELECT email, full_name FROM users WHERE id = ?', [userId]);
+    const { rows: userRows } = await pool.query('SELECT email, full_name FROM users WHERE id = $1', [userId]);
     if (userRows.length > 0) {
       sendEmail(
         userRows[0].email,
@@ -485,7 +487,7 @@ app.get('/api/topup/verify/:reference', async (req, res) => {
       ).catch(() => {});
     }
 
-    res.json({ verified: true, purchase: rows[0] });
+    res.json({ verified: true, purchase: purchaseRows[0] });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -513,7 +515,7 @@ app.post('/api/chat', async (req, res) => {
   try {
     // save the user's message first so it's recorded even if the AI call below fails
     await pool.query(
-      'INSERT INTO chat_messages (user_id, sender, message) VALUES (?, ?, ?)',
+      'INSERT INTO chat_messages (user_id, sender, message) VALUES ($1, $2, $3)',
       [user_id, 'user', message]
     );
 
@@ -521,8 +523,8 @@ app.post('/api/chat', async (req, res) => {
 
     if (GROQ_API_KEY) {
       // pull the last few messages for this user as conversation context
-      const [history] = await pool.query(
-        'SELECT sender, message FROM chat_messages WHERE user_id = ? ORDER BY created_at DESC LIMIT 8',
+      const { rows: history } = await pool.query(
+        'SELECT sender, message FROM chat_messages WHERE user_id = $1 ORDER BY created_at DESC LIMIT 8',
         [user_id]
       );
       const recent = history.reverse().map((m) => ({
@@ -560,13 +562,12 @@ app.post('/api/chat', async (req, res) => {
       }
     }
 
-    const [result] = await pool.query(
-      'INSERT INTO chat_messages (user_id, sender, message) VALUES (?, ?, ?)',
+    const { rows: insertedRows } = await pool.query(
+      'INSERT INTO chat_messages (user_id, sender, message) VALUES ($1, $2, $3) RETURNING *',
       [user_id, 'ai', replyText]
     );
-    const [rows] = await pool.query('SELECT * FROM chat_messages WHERE id = ?', [result.insertId]);
 
-    res.json({ reply: replyText, message: rows[0] });
+    res.json({ reply: replyText, message: insertedRows[0] });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -577,7 +578,7 @@ app.post('/api/chat', async (req, res) => {
    ============================================================ */
 app.get('/api/transformers', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT * FROM transformers ORDER BY name');
+    const { rows } = await pool.query('SELECT * FROM transformers ORDER BY name');
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -586,11 +587,11 @@ app.get('/api/transformers', async (req, res) => {
 
 app.get('/api/transformers/:id/users', async (req, res) => {
   try {
-    const [rows] = await pool.query(
+    const { rows } = await pool.query(
       `SELECT u.id, u.full_name, ep.location
        FROM electricity_profiles ep
        JOIN users u ON u.id = ep.user_id
-       WHERE ep.transformer_id = ?`,
+       WHERE ep.transformer_id = $1`,
       [req.params.id]
     );
     res.json(rows);
@@ -607,7 +608,7 @@ app.post('/api/notify/test', async (req, res) => {
   if (!user_id) return res.status(400).json({ error: 'user_id is required' });
 
   try {
-    const [rows] = await pool.query('SELECT email, full_name FROM users WHERE id = ?', [user_id]);
+    const { rows } = await pool.query('SELECT email, full_name FROM users WHERE id = $1', [user_id]);
     if (rows.length === 0) return res.status(404).json({ error: 'User not found' });
 
     const result = await sendEmail(
