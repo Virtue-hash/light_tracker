@@ -132,15 +132,24 @@ app.post('/api/register', async (req, res) => {
     return res.status(400).json({ error: 'full_name, email, and password are required' });
   }
 
+  // Everything below runs as a single database transaction: if ANY step
+  // fails (bad transformer name, bad budget value, etc.), the whole thing
+  // rolls back -- so a failed signup never leaves a half-created user
+  // account behind (which was previously causing "email already exists"
+  // on the next attempt, even though registration had actually failed).
+  const client = await pool.connect();
   try {
-    const { rows: existing } = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    await client.query('BEGIN');
+
+    const { rows: existing } = await client.query('SELECT id FROM users WHERE email = $1', [email]);
     if (existing.length > 0) {
+      await client.query('ROLLBACK');
       return res.status(409).json({ error: 'An account with that email already exists' });
     }
 
     const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
-    const { rows: userRows } = await pool.query(
-      'INSERT INTO users (full_name, email, password_hash) VALUES ($1, $2, $3) RETURNING id',
+    const { rows: userRows } = await client.query(
+      'INSERT INTO users (full_name, email, password_hash, email_verified) VALUES ($1, $2, $3, TRUE) RETURNING id',
       [full_name, email, passwordHash]
     );
     const userId = userRows[0].id;
@@ -153,14 +162,14 @@ app.post('/api/register', async (req, res) => {
       // transformer this user belongs to
       if (transformer_name && transformer_name.trim()) {
         const cleanName = transformer_name.trim();
-        const { rows: existingTransformer } = await pool.query(
+        const { rows: existingTransformer } = await client.query(
           'SELECT id FROM transformers WHERE name = $1',
           [cleanName]
         );
         if (existingTransformer.length > 0) {
           transformerId = existingTransformer[0].id;
         } else {
-          const { rows: newTransformer } = await pool.query(
+          const { rows: newTransformer } = await client.query(
             'INSERT INTO transformers (name, location) VALUES ($1, $2) RETURNING id',
             [cleanName, location]
           );
@@ -168,19 +177,19 @@ app.post('/api/register', async (req, res) => {
         }
       }
 
-      await pool.query(
+      const cleanBudget = Number(monthly_budget);
+      await client.query(
         'INSERT INTO electricity_profiles (user_id, electricity_type, location, monthly_budget, transformer_id) VALUES ($1, $2, $3, $4, $5)',
-        [userId, electricity_type, location, monthly_budget || 0, transformerId]
+        [userId, electricity_type, location, Number.isFinite(cleanBudget) ? cleanBudget : 0, transformerId]
       );
     }
 
-    // Email verification is disabled for now (no email service configured
-    // yet) -- new accounts are marked verified immediately so the frontend
-    // can log them straight in instead of waiting on a code that can't be
-    // delivered. Flip this back on later once EMAIL_USER/EMAIL_APP_PASSWORD
-    // (or another email provider) is set up on Render.
-    await pool.query('UPDATE users SET email_verified = TRUE WHERE id = $1', [userId]);
+    await client.query('COMMIT');
 
+    // Email verification is disabled for now (no email service configured
+    // yet) -- accounts are created already verified above. Flip this back
+    // on later once EMAIL_USER/EMAIL_APP_PASSWORD (or another email
+    // provider) is set up on Render.
     sendEmail(
       email,
       'Welcome to Light Tracker',
@@ -194,7 +203,10 @@ app.post('/api/register', async (req, res) => {
       email_verified: true
     });
   } catch (err) {
+    await client.query('ROLLBACK');
     res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
   }
 });
 
@@ -668,6 +680,60 @@ app.post('/api/chat', async (req, res) => {
 });
 
 /* ============================================================
+   REPORT OUTAGE
+   Matches Auth.js's saveReport exactly: { user_id, status }.
+   Reporting OFF starts a new outage event. Reporting ON closes
+   the user's most recent open OFF event and calculates how long
+   it lasted, returning duration_minutes for the toast message.
+   ============================================================ */
+app.post('/api/report-outage', async (req, res) => {
+  const { user_id, status } = req.body;
+  if (!user_id || !status || !['ON', 'OFF'].includes(status)) {
+    return res.status(400).json({ error: 'user_id and a valid status (ON or OFF) are required' });
+  }
+
+  try {
+    if (status === 'OFF') {
+      const { rows } = await pool.query(
+        "INSERT INTO power_status_events (user_id, status, started_at) VALUES ($1, 'OFF', NOW()) RETURNING *",
+        [user_id]
+      );
+      return res.status(201).json(rows[0]);
+    }
+
+    // status === 'ON' -- try to close the most recent open outage for this user
+    const { rows: openEvents } = await pool.query(
+      `SELECT * FROM power_status_events
+       WHERE user_id = $1 AND status = 'OFF' AND ended_at IS NULL
+       ORDER BY started_at DESC LIMIT 1`,
+      [user_id]
+    );
+
+    if (openEvents.length === 0) {
+      // Nothing open to close -- just log a standalone ON event
+      const { rows } = await pool.query(
+        "INSERT INTO power_status_events (user_id, status, started_at) VALUES ($1, 'ON', NOW()) RETURNING *",
+        [user_id]
+      );
+      return res.status(201).json({ ...rows[0], duration_minutes: null });
+    }
+
+    const { rows: updatedRows } = await pool.query(
+      `UPDATE power_status_events
+       SET ended_at = NOW(),
+           duration_minutes = ROUND(EXTRACT(EPOCH FROM (NOW() - started_at)) / 60)::INT
+       WHERE id = $1
+       RETURNING *`,
+      [openEvents[0].id]
+    );
+
+    res.json(updatedRows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ============================================================
    TRANSFORMERS
    ============================================================ */
 app.get('/api/transformers', async (req, res) => {
@@ -719,4 +785,4 @@ app.post('/api/notify/test', async (req, res) => {
 /* ============================================================ */
 app.listen(PORT, () => {
   console.log(`Light Tracker API running on http://localhost:${PORT}`);
-});
+});s
