@@ -785,4 +785,4 @@ app.post('/api/notify/test', async (req, res) => {
 /* ============================================================ */
 app.listen(PORT, () => {
   console.log(`Light Tracker API running on http://localhost:${PORT}`);
-});s
+});
